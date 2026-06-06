@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5,user-scalable=yes">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+            background: #f9f9f9;
+        }
+
+        body {
+            padding: 20px;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        label, .section_label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        input[readonly] {
+            background-color: #eee;
+        }
+
+        .section-divider {
+            border-top: 1px solid #ccc;
+            margin: 30px 0;
+        }
+
+        .dropdown {
+            position: relative;
+            width: 100%;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            width: 90%;
+            max-width: 520px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .modal label {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .modal input[type="checkbox"] {
+            width: 20px;
+            min-width: 20px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .modal .class-text {
+            width: 70%;
+            max-width: 70%;
+        }
+
+        .modal button {
+            margin-top: 10px;
+        }
+
+        #classDropdownContent {
+            display: none !important;
+        }
+
+        .no-events-wrap {
+            min-height: calc(100vh - 40px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .no-events-card {
+            width: 100%;
+            max-width: 520px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 22px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .no-events-card h2 {
+            margin: 0 0 10px 0;
+        }
+
+        .no-events-card p {
+            margin: 0 0 14px 0;
+            line-height: 1.4;
+        }
+    </style>
+
+    <title>Entry Form</title>
+</head>
+
+<body>
+    <h1 role="main">Entry Form</h1>
+
+    <label for="number">Rider Number:</label>
+    <input id="number" list="riderNumbers" placeholder="Select or type Rider Number" onchange="loadRider()">
+    <datalist id="riderNumbers"></datalist>
+
+    <label for="firstName">First Name:</label>
+    <input id="firstName" readonly>
+
+    <label for="lastName">Last Name:</label>
+    <input id="lastName" readonly>
+
+    <label for="age">Age:</label>
+    <input id="age" type="number">
+
+    <label for="division">Division</label>
+    <select id="division" onchange="loadCheckboxes()">
+        <option value="">-- Select Division --</option>
+    </select>
+
+    <label for="horse">Horse Name:</label>
+    <input id="horse" readonly>
+
+    <div class="section-divider"></div>
+
+    <div class="section_label">Select Classes:</div>
+
+    <div class="dropdown" style="background-color:#fff;" id="dropdownContainer">
+        <button type="button"
+                style="background-color:#fff; text-align:left;"
+                id="classDropdownBtn"
+                onclick="handleClassButtonClick()">
+            -- Select Classes --
+        </button>
+
+        <div id="classDropdownContent"></div>
+    </div>
+
+    <div class="modal" id="classModal" aria-modal="true" role="dialog" aria-labelledby="classModalTitle">
+        <div class="modal-content" id="classModalContent">
+            <div class="modal-header" id="classModalTitle">Select Classes</div>
+            <div id="modalCheckboxes"></div>
+            <button type="button" onclick="closeModal()">Done</button>
+        </div>
+    </div>
+
+    <button type="button" onclick="submitForm()">Submit</button>
+
+    <script>
+
+        const API_BASE = "https://script.google.com/macros/s/AKfycbxZXWkl_2etdAxfr9iIlDmVGLxsg_UEcnu4rnR26yexZ49I3uDmeFNSc0KzBWbbn4P70A/exec";
+
+        function setLoadingButton(btnEl, isLoading, loadingText = "Loading...", normalText = "-- Select Classes --") {
+
+            if (!btnEl) {
+                return;
+            }
+
+            if (isLoading) {
+                btnEl.dataset.normalText = btnEl.textContent || normalText;
+                btnEl.textContent = loadingText;
+                btnEl.disabled = true;
+                btnEl.setAttribute("aria-busy", "true");
+            } else {
+                btnEl.textContent = btnEl.dataset.normalText || normalText;
+                btnEl.disabled = false;
+                btnEl.removeAttribute("aria-busy");
+            }
+        }
+
+        function setLoadingSelect(selectEl, isLoading, loadingText = "Loading...", normalText = "-- Select Division --") {
+
+            if (!selectEl) {
+                return;
+            }
+
+            if (!selectEl.options.length) {
+                const opt = document.createElement("option");
+                opt.value = "";
+                opt.textContent = normalText;
+                selectEl.appendChild(opt);
+            }
+
+            if (isLoading) {
+                selectEl.dataset.normalText = selectEl.options[0].textContent || normalText;
+                selectEl.options[0].textContent = loadingText;
+                selectEl.disabled = true;
+                selectEl.setAttribute("aria-busy", "true");
+            } else {
+                selectEl.options[0].textContent = selectEl.dataset.normalText || normalText;
+                selectEl.disabled = false;
+                selectEl.removeAttribute("aria-busy");
+            }
+        }
+
+        function setLoadingInputPlaceholder(inputEl, isLoading, loadingText = "Loading...") {
+
+            if (!inputEl) {
+                return;
+            }
+
+            if (isLoading) {
+                inputEl.dataset.normalPlaceholder = inputEl.placeholder || "";
+                inputEl.placeholder = loadingText;
+                inputEl.disabled = true;
+                inputEl.setAttribute("aria-busy", "true");
+            } else {
+                inputEl.placeholder = inputEl.dataset.normalPlaceholder || inputEl.placeholder || "";
+                inputEl.disabled = false;
+                inputEl.removeAttribute("aria-busy");
+            }
+        }
+
+        const CACHE_PREFIX = "entryform:";
+        const VERSION_STORE_KEY = CACHE_PREFIX + "versions";
+        const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+        function groupForAction(action) {
+            switch (action) {
+                case "getRiderNumberMap":
+                case "findRider":
+                    return "riders";
+                case "getDivisions":
+                    return "divisions";
+                case "getClasses":
+                case "getActiveEvent":
+                    return "classes";
+                default:
+                    return "misc";
+            }
+        }
+
+        function dependsOnVersions(group) {
+            switch (group) {
+                case "riders":
+                    return ["riders"];
+                case "divisions":
+                    return ["divisions"];
+                case "classes":
+                    return ["events", "classes", "altClasses"];
+                default:
+                    return ["events", "classes", "altClasses", "riders", "divisions", "entries"];
+            }
+        }
+
+        async function rawApiGet(action, params = {}) {
+
+            const url = new URL(API_BASE);
+            url.searchParams.set("action", action);
+
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) {
+                    url.searchParams.set(k, v);
+                }
+            });
+
+
+            const res = await fetch(url.toString(), {
+                method: "GET",
+                redirect: "follow"
+            });
+
+
+            if (!res.ok) {
+                throw new Error("GET failed: " + res.status);
+            }
+
+            const data = await res.json();
+
+            return data;
+        }
+
+        async function rawApiPost(action, payloadObj) {
+
+            const body = new URLSearchParams();
+            body.set("action", action);
+            body.set("payload", JSON.stringify(payloadObj || {}));
+
+            const res = await fetch(API_BASE, {
+                method: "POST",
+                body,
+                redirect: "follow"
+            });
+
+
+            const out = await res.json().catch((err) => {
+                return {};
+            });
+
+
+            return { res, out };
+        }
+
+        function loadLocalVersions() {
+            try {
+                const raw = localStorage.getItem(VERSION_STORE_KEY);
+                if (!raw) return null;
+
+                const v = JSON.parse(raw);
+                if (!v || typeof v !== "object") return null;
+
+                return v;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function saveLocalVersions(v) {
+            try {
+                localStorage.setItem(VERSION_STORE_KEY, JSON.stringify(v));
+            } catch (err) {
+            }
+        }
+
+        function clearGroupCache(group) {
+
+            const prefix = `${CACHE_PREFIX}${group}:`;
+
+            Object.keys(localStorage).forEach(k => {
+                if (k.startsWith(prefix)) {
+                    localStorage.removeItem(k);
+                }
+            });
+        }
+
+        function cacheKeyFor(group, action, params) {
+            return `${CACHE_PREFIX}${group}:${action}:${JSON.stringify(params || {})}`;
+        }
+
+        function readCache(key) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) {
+                    return null;
+                }
+
+                const obj = JSON.parse(raw);
+                if (!obj || typeof obj !== "object") return null;
+                if (!obj.savedAt) return null;
+
+                if ((Date.now() - obj.savedAt) > CACHE_TTL_MS) {
+                    return null;
+                }
+
+                return obj.data;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function writeCache(key, data) {
+            try {
+                localStorage.setItem(key, JSON.stringify({
+                    savedAt: Date.now(),
+                    data
+                }));
+
+            } catch (err) {
+            }
+        }
+
+        let _versionsPromise = null;
+
+        async function ensureVersionsFresh() {
+
+            if (_versionsPromise) {
+                return _versionsPromise;
+            }
+
+            _versionsPromise = (async () => {
+                const serverV = await rawApiGet("getVersions");
+
+                const normalizedServerV = {
+                    riders: String(serverV.riders || "0"),
+                    divisions: String(serverV.divisions || "0"),
+                    classes: String(serverV.classes || "0"),
+                    altClasses: String(serverV.altClasses || "0"),
+                    events: String(serverV.events || "0"),
+                    entries: String(serverV.entries || "0")
+                };
+
+
+                const localV = loadLocalVersions();
+
+                if (!localV) {
+                    saveLocalVersions(normalizedServerV);
+                    return normalizedServerV;
+                }
+
+                const changed = [];
+
+                Object.keys(normalizedServerV).forEach(k => {
+                    if (String(localV[k] || "0") !== String(normalizedServerV[k] || "0")) {
+                        changed.push(k);
+                    }
+                });
+
+
+                if (changed.length) {
+                    const groups = ["riders", "divisions", "classes", "misc"];
+
+                    groups.forEach(g => {
+                        const deps = dependsOnVersions(g);
+                        const hit = deps.some(dep => changed.includes(dep));
+
+                        if (hit) {
+                            clearGroupCache(g);
+                        }
+                    });
+
+                    saveLocalVersions(normalizedServerV);
+                }
+
+                return normalizedServerV;
+            })();
+
+            return _versionsPromise;
+        }
+
+        async function apiGet(action, params = {}) {
+
+            if (action === "getVersions") {
+                return rawApiGet(action, params);
+            }
+
+            await ensureVersionsFresh();
+
+            const group = groupForAction(action);
+            const key = cacheKeyFor(group, action, params);
+
+            const cached = readCache(key);
+            if (cached !== null) {
+                return cached;
+            }
+
+            const data = await rawApiGet(action, params);
+
+            if (data && typeof data === "object" && data.error) {
+                return data;
+            }
+
+            writeCache(key, data);
+            return data;
+        }
+
+        setInterval(() => {
+            _versionsPromise = null;
+            ensureVersionsFresh().catch((err) => {
+            });
+        }, 120000);
+
+        function setFieldState(readOnly) {
+
+            ["firstName", "lastName", "horse"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.readOnly = readOnly;
+            });
+        }
+
+        function updateClassButtonText() {
+            const btn = document.getElementById("classDropdownBtn");
+
+            if (!btn) {
+                return;
+            }
+
+            if (btn.disabled) {
+                return;
+            }
+
+            const selected = [...document.querySelectorAll("#modalCheckboxes input:checked")].length;
+            btn.textContent = selected ? `Select Classes (${selected} selected)` : "Select Classes";
+
+        }
+
+        function showNoEventsPage_() {
+
+            document.body.innerHTML = `
+                <main class="no-events-wrap" role="main">
+                    <div class="no-events-card">
+                        <h2>No events currently open</h2>
+                        <p>Entries are not available right now. Please check back later.</p>
+                        <p style="font-size: 13px; color: #555;">
+                            If you believe this is a mistake, contact the club administrator.
+                        </p>
+                    </div>
+                </main>
+            `;
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+
+            let DocHtml = document.body.innerHTML;
+
+
+            document.body.innerHTML = `
+                <main class="no-events-wrap" role="main">
+                    <div class="no-events-card">
+                        <h2>Loading Form</h2>
+                        <p>Please wait while loading form</p>
+                    </div>
+                </main>
+            `;
+
+
+            try {
+                const status = await apiGet("getActiveEvent");
+
+
+                if (!status || status.active !== true) {
+                    showNoEventsPage_();
+                    return;
+                } else {
+                    document.body.innerHTML = DocHtml;
+                }
+            } catch (err) {
+                showNoEventsPage_();
+                return;
+            }
+
+            const divisionSelect = document.getElementById("division");
+            setLoadingSelect(divisionSelect, true, "Loading divisions...", "-- Select Division --");
+
+            try {
+                await populateDivisions();
+            } catch (err) {
+            } finally {
+                setLoadingSelect(divisionSelect, false, "Loading divisions...", "-- Select Division --");
+            }
+
+            const numberInput = document.getElementById("number");
+            setLoadingInputPlaceholder(numberInput, true, "Loading rider list...");
+
+            try {
+                await buildRiderNumberList();
+            } catch (err) {
+            } finally {
+                setLoadingInputPlaceholder(numberInput, false, "Loading rider list...");
+            }
+
+        });
+
+        async function populateDivisions() {
+            const divisions = await apiGet("getDivisions");
+
+            const select = document.getElementById("division");
+
+            if (!select) {
+                return;
+            }
+
+            divisions.forEach(d => {
+                const option = document.createElement("option");
+                option.value = d;
+                option.textContent = d;
+                select.appendChild(option);
+            });
+        }
+
+        async function buildRiderNumberList() {
+            const existingMap = await apiGet("getRiderNumberMap");
+
+            const datalist = document.getElementById("riderNumbers");
+
+            if (!datalist) {
+                return;
+            }
+
+            datalist.innerHTML = "";
+
+            for (let i = 1; i <= 200; i++) {
+                const option = document.createElement("option");
+                option.value = i;
+
+                if (existingMap[i]) {
+                    option.label = existingMap[i];
+                }
+
+                datalist.appendChild(option);
+            }
+
+            Object.keys(existingMap)
+                .map(Number)
+                .filter(n => n > 200)
+                .sort((a, b) => a - b)
+                .forEach(n => {
+                    const option = document.createElement("option");
+                    option.value = n;
+                    option.label = existingMap[n];
+                    datalist.appendChild(option);
+                });
+        }
+
+        async function loadRider() {
+
+            const numberInput = document.getElementById("number");
+
+            if (!numberInput) {
+                return;
+            }
+
+            const number = numberInput.value;
+
+            if (!number) return;
+
+            setLoadingInputPlaceholder(numberInput, true, "Loading rider...");
+
+            try {
+                const rider = await apiGet("findRider", { number });
+
+                const firstNameEl = document.getElementById("firstName");
+                const lastNameEl = document.getElementById("lastName");
+                const ageEl = document.getElementById("age");
+                const horseEl = document.getElementById("horse");
+
+                if (rider.exists) {
+                    firstNameEl.value = rider.firstName || "";
+                    lastNameEl.value = rider.lastName || "";
+                    ageEl.value = rider.age || "";
+                    horseEl.value = rider.horse || "";
+                    setFieldState(true);
+                } else {
+                    firstNameEl.value = "";
+                    lastNameEl.value = "";
+                    ageEl.value = "";
+                    horseEl.value = "";
+                    setFieldState(false);
+                }
+            } catch (err) {
+            } finally {
+                setLoadingInputPlaceholder(numberInput, false, "Loading rider...");
+            }
+        }
+
+        async function loadCheckboxes() {
+
+            const divisionEl = document.getElementById("division");
+
+            if (!divisionEl) {
+                return;
+            }
+
+            const division = divisionEl.value;
+
+            if (!division) {
+                return;
+            }
+
+            const btn = document.getElementById("classDropdownBtn");
+            setLoadingButton(btn, true, "Loading classes...", "Select Classes");
+
+            try {
+                const items = await apiGet("getClasses", { division });
+
+                renderClassesIntoModal(items);
+                updateClassButtonText();
+            } catch (err) {
+            } finally {
+                setLoadingButton(btn, false, "Loading classes...", "Select Classes");
+                updateClassButtonText();
+            }
+        }
+
+        function renderClassesIntoModal(items) {
+        const modalContainer = document.getElementById("modalCheckboxes");
+        modalContainer.innerHTML = "";
+
+        items.forEach((item, i) => {
+            const label = document.createElement("label");
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.value = item;
+            cb.id = "modal_" + i;
+            cb.addEventListener("change", updateClassButtonText);
+            label.appendChild(document.createTextNode(" " + item));
+            label.appendChild(cb);
+            modalContainer.appendChild(label);
+        });
+    }
+
+        async function handleClassButtonClick() {
+
+            const btn = document.getElementById("classDropdownBtn");
+            const divisionEl = document.getElementById("division");
+            const modalCheckboxes = document.getElementById("modalCheckboxes");
+
+
+            if (btn && btn.disabled) {
+                return;
+            }
+
+            if (!divisionEl || !divisionEl.value) {
+                console.warn("[CLASSES] No division selected.");
+                alert("Please select a division first.");
+                return;
+            }
+
+
+            if (!modalCheckboxes || modalCheckboxes.children.length === 0) {
+                await loadCheckboxes();
+            } else {
+            }
+
+            openModal();
+        }
+
+        function openModal() {
+
+            const modal = document.getElementById("classModal");
+
+            if (!modal) {
+                return;
+            }
+
+            modal.style.display = "flex";
+
+
+            setTimeout(() => {
+                const first = document.querySelector("#modalCheckboxes input");
+
+                if (first) {
+                    first.focus();
+                } else {
+                }
+            }, 0);
+        }
+
+        function closeModal() {
+
+            const modal = document.getElementById("classModal");
+            const btn = document.getElementById("classDropdownBtn");
+
+            if (modal) {
+                modal.style.display = "none";
+            } else {
+            }
+
+            updateClassButtonText();
+
+            if (btn) {
+                btn.focus();
+            }
+        }
+
+        async function submitForm() {
+
+            const submitBtn = document.querySelector('button[onclick="submitForm()"]');
+
+            if (submitBtn) {
+                submitBtn.dataset.normalText = submitBtn.textContent || "Submit";
+                submitBtn.textContent = "Submitting...";
+                submitBtn.disabled = true;
+                submitBtn.setAttribute("aria-busy", "true");
+            }
+
+            try {
+                const selected = [...document.querySelectorAll("#modalCheckboxes input:checked")]
+                    .map(cb => cb.value);
+
+                const data = {
+                    number: document.getElementById("number").value,
+                    firstName: document.getElementById("firstName").value,
+                    lastName: document.getElementById("lastName").value,
+                    age: +document.getElementById("age").value,
+                    division: document.getElementById("division").value,
+                    horse: document.getElementById("horse").value,
+                    classes: selected
+                };
+
+
+                if (!data.number || data.classes.length === 0) {
+                    alert("Rider Number and at least one class are required.");
+                    return;
+                }
+
+                const { res, out } = await rawApiPost("submitForm", data);
+
+                if (!res.ok || out.error) {
+                    alert("Submit failed: " + (out.error || res.statusText));
+                    return;
+                }
+
+                _versionsPromise = null;
+                await ensureVersionsFresh().catch((err) => {
+                    console.warn("[SUBMIT] Version refresh after submit failed:", err);
+                });
+
+                alert(out.updatedExisting ? "Entry updated!" : "Entry created!");
+            } catch (err) {
+                alert("Submit failed.");
+            } finally {
+                if (submitBtn) {
+                    submitBtn.textContent = submitBtn.dataset.normalText || "Submit";
+                    submitBtn.disabled = false;
+                    submitBtn.removeAttribute("aria-busy");
+                }
+            }
+        }
+
+        document.addEventListener("click", (e) => {
+            const classModal = document.getElementById("classModal");
+            const classModalContent = document.getElementById("classModalContent");
+
+            if (!classModal || !classModalContent) return;
+
+            if (classModal.style.display === "flex" && e.target === classModal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                const classModal = document.getElementById("classModal");
+
+                if (classModal && classModal.style.display === "flex") {
+                    closeModal();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
