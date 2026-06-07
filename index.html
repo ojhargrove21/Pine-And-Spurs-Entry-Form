@@ -142,9 +142,9 @@
 
 <body>
     <h1 role="main">Entry Form</h1>
-
+    
     <label for="number">Rider Number:</label>
-    <input id="number" list="riderNumbers" placeholder="Select or type Rider Number" onchange="loadRider()">
+    <input id="number" list="riderNumbers" placeholder="Select or type Rider Number. Leave blank to have us assign one " onchange="loadRider()">
     <datalist id="riderNumbers"></datalist>
 
     <label for="firstName">First Name:</label>
@@ -811,10 +811,7 @@
                 };
 
 
-                if (!data.number || data.classes.length === 0) {
-                    alert("Rider Number and at least one class are required.");
-                    return;
-                }
+                
 
                 const { res, out } = await rawApiPost("submitForm", data);
 
